@@ -1,0 +1,6 @@
+{
+  "name": "Planner",
+  "description": "Convert multiple images into a PDF quickly, securely, and privately with Planner.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
