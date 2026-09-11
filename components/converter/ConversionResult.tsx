@@ -59,15 +59,16 @@ export const ConversionResult: React.FC<ConversionResultProps> = ({
       id="conversion-result-screen"
     >
       {/* Success Badge */}
-      <div className="flex flex-col items-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 mb-3 border border-emerald-200 dark:border-emerald-800/60">
-          <CheckCircle2 className="h-6 w-6" />
+      <div className="flex flex-col items-center space-y-2">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+          <CheckCircle2 className="h-3.5 w-3.5 stroke-[2.5]" />
+          <span>Konversi Berhasil</span>
         </div>
-        <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
-          Conversion Completed
+        <h2 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          Berkas Siap Diunduh
         </h2>
-        <p className="mt-1 text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
-          {result.summaryText || 'Your file has been converted successfully.'}
+        <p className="mt-1 text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto">
+          {result.summaryText || 'Dokumen Anda telah berhasil dikonversi secara lokal di peramban.'}
         </p>
       </div>
 
