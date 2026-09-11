@@ -1,6 +1,6 @@
 {
   "name": "Planner",
-  "description": "Convert images, Word, Excel, PowerPoint, HTML, and documents to and from PDF quickly, securely, and privately with Planner.",
+  "description": "All-in-one private PDF toolkit: Photo to PDF, PDF Converter Suite, and 16 client-side PDF Tools (Merge, Split, Compress, Organize, Sign, Watermark, Protect, Unlock, Edit, Repair).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
