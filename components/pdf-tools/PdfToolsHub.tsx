@@ -26,6 +26,7 @@ import {
   FileArchive,
   Download,
   Files,
+  RefreshCw,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { ConverterHub } from '@/components/converter/ConverterHub';
@@ -40,6 +41,7 @@ import {
 import { PdfToolIcon } from './PdfToolIcons';
 import { PdfToolsGrid } from './PdfToolsGrid';
 import { PdfToolResult } from './PdfToolResult';
+import { PdfProcessingModal } from './PdfProcessingModal';
 import { SignaturePad } from './SignaturePad';
 import { renderAllThumbnails, getPdfDocument } from '@/lib/pdf-tools/pdf-renderer';
 
@@ -191,12 +193,34 @@ export const PdfToolsHub: React.FC = () => {
   const [compareShowDiff, setCompareShowDiff] = useState(true);
   const [compareDiffPct, setCompareDiffPct] = useState(0);
 
-  // Select tool and smooth scroll to workspace
-  const handleSelectTool = (id: PdfToolId) => {
-    setActiveToolId(id);
+  // Complete file reset function to delete/clear active files and reset state
+  const handleClearFiles = () => {
+    setFiles([]);
+    setCompareFileB(null);
+    setThumbnails([]);
+    setOrganizedPages([]);
     setResult(null);
     setErrorMessage(null);
-    // If switching between multipleFiles and single file, keep appropriate files
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (addMoreFileInputRef.current) addMoreFileInputRef.current.value = '';
+    if (compareFileBInputRef.current) compareFileBInputRef.current.value = '';
+  };
+
+  // Select tool and reset files so user is asked to upload fresh file for the new tool
+  const handleSelectTool = (id: PdfToolId) => {
+    if (id !== activeToolId) {
+      setActiveToolId(id);
+      setResult(null);
+      setErrorMessage(null);
+      // Reset files so new tool asks user to upload file again
+      setFiles([]);
+      setCompareFileB(null);
+      setThumbnails([]);
+      setOrganizedPages([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (addMoreFileInputRef.current) addMoreFileInputRef.current.value = '';
+      if (compareFileBInputRef.current) compareFileBInputRef.current.value = '';
+    }
     setTimeout(() => {
       workspaceRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
@@ -694,17 +718,26 @@ export const PdfToolsHub: React.FC = () => {
 
             <div className="flex items-center gap-2 flex-wrap text-xs self-start sm:self-auto shrink-0">
               {files.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFiles([]);
-                    setResult(null);
-                    setErrorMessage(null);
-                  }}
-                  className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
-                >
-                  Ganti Berkas
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                    title="Ganti dengan berkas baru"
+                  >
+                    <RefreshCw className="h-3 w-3 text-zinc-500" />
+                    <span>Ganti Berkas</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearFiles}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/70 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 transition-colors cursor-pointer"
+                    title="Hapus berkas dan reset pilihan"
+                  >
+                    <Trash2 className="h-3 w-3 text-rose-500" />
+                    <span>Hapus Berkas</span>
+                  </button>
+                </>
               )}
               <span className="inline-flex items-center rounded-md border border-zinc-200/80 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
                 {currentToolMeta.multipleFiles ? 'Multi-dokumen' : 'Dokumen tunggal'}
@@ -785,11 +818,13 @@ export const PdfToolsHub: React.FC = () => {
             /* VIEW C: Interactive Tool Workspace */
             <div className="mt-6 space-y-6">
               {/* Active Files Summary Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200/80 bg-zinc-50/60 p-3.5 dark:border-zinc-800 dark:bg-zinc-800/30">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200/80 bg-zinc-50/60 p-3.5 dark:border-zinc-800 dark:bg-zinc-800/30" id="active-files-summary-bar">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <FileText className="h-4.5 w-4.5 text-zinc-600 dark:text-zinc-400 shrink-0" />
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-200/80 bg-red-50/80 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400">
+                    <FileText className="h-4.5 w-4.5" />
+                  </div>
                   <div className="min-w-0">
-                    <div className="truncate text-xs sm:text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    <div className="truncate text-xs sm:text-sm font-semibold text-zinc-900 dark:text-zinc-100" title={files.length === 1 ? files[0].name : `${files.length} berkas PDF terpilih`}>
                       {files.length === 1 ? files[0].name : `${files.length} berkas PDF terpilih`}
                     </div>
                     <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
@@ -799,26 +834,59 @@ export const PdfToolsHub: React.FC = () => {
                   </div>
                 </div>
 
-                {currentToolMeta.multipleFiles && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      ref={addMoreFileInputRef}
-                      onChange={handleFileInputChange}
-                      accept="application/pdf"
-                      multiple
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => addMoreFileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>Tambah File</span>
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {currentToolMeta.multipleFiles ? (
+                    <>
+                      <input
+                        type="file"
+                        ref={addMoreFileInputRef}
+                        onChange={handleFileInputChange}
+                        accept="application/pdf"
+                        multiple
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addMoreFileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Tambah File</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearFiles}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/70 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 transition-colors cursor-pointer"
+                        title="Hapus semua berkas yang dipilih"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                        <span>Hapus Semua</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 transition-colors cursor-pointer"
+                        title="Ganti dengan berkas lain"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 text-zinc-500" />
+                        <span>Ganti Berkas</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleClearFiles}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/60 transition-colors shadow-2xs cursor-pointer"
+                        id="summary-bar-delete-file-btn"
+                        title="Hapus berkas ini dan pilih berkas baru"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                        <span>Hapus Berkas</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* ---------------------------------------------------- */}
@@ -1892,21 +1960,14 @@ export const PdfToolsHub: React.FC = () => {
                 </button>
               </div>
 
-              {/* Real Processing Progress Dialog */}
-              {isProcessing && (
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50/90 p-4 dark:border-zinc-800 dark:bg-zinc-800/60 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                    <span>{progress.stage || 'Memproses berkas...'}</span>
-                    <span>{progress.percent}%</span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
-                    <div
-                      className="h-full bg-zinc-900 dark:bg-zinc-100 transition-all duration-300"
-                      style={{ width: `${progress.percent}%` }}
-                    />
-                  </div>
-                </div>
-              )}
+              {/* Modern Processing Modal */}
+              <PdfProcessingModal
+                isOpen={isProcessing}
+                toolName={currentToolMeta.name}
+                toolId={activeToolId}
+                progress={progress}
+                fileName={files[0]?.name}
+              />
             </div>
           )}
         </div>
