@@ -13,7 +13,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: 'Planner — Photo & Document PDF Converter',
-  description: 'Convert images, Word, Excel, PowerPoint, HTML, and documents to and from PDF quickly, securely, and privately with Planner.',
+  description: 'All-in-one private PDF toolkit: Photo to PDF, PDF Converter Suite, and 16 client-side PDF Tools (Merge, Split, Compress, Organize, Sign, Watermark, Protect, Unlock, Edit, Repair).',
   applicationName: 'Planner',
   appleWebApp: {
     capable: true,
@@ -30,14 +30,14 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Planner — Photo & Document PDF Converter',
-    description: 'Convert images, Word, Excel, PowerPoint, HTML, and documents to and from PDF quickly, securely, and privately with Planner.',
+    description: 'All-in-one private PDF toolkit: Photo to PDF, PDF Converter Suite, and 16 client-side PDF Tools (Merge, Split, Compress, Organize, Sign, Watermark, Protect, Unlock, Edit, Repair).',
     type: 'website',
     siteName: 'Planner',
   },
   twitter: {
     card: 'summary',
     title: 'Planner — Photo & Document PDF Converter',
-    description: 'Convert images, Word, Excel, PowerPoint, HTML, and documents to and from PDF quickly, securely, and privately with Planner.',
+    description: 'All-in-one private PDF toolkit: Photo to PDF, PDF Converter Suite, and 16 client-side PDF Tools (Merge, Split, Compress, Organize, Sign, Watermark, Protect, Unlock, Edit, Repair).',
   },
 };
 
