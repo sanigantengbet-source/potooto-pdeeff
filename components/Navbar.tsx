@@ -115,13 +115,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Center navigation (Desktop) */}
         <nav className="hidden md:flex items-center gap-1 text-sm">
-          <a
-            href="#convert"
+          <Link
+            href="/"
+            className="rounded-md px-3 py-1.5 font-medium text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:text-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
+            id="nav-link-photo-to-pdf"
+          >
+            Photo to PDF
+          </Link>
+          <Link
+            href="/convert"
             className="rounded-md px-3 py-1.5 font-medium text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:text-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
             id="nav-link-convert"
           >
-            Convert
-          </a>
+            PDF Converter
+          </Link>
           <button
             type="button"
             onClick={onOpenHowItWorks}
@@ -228,6 +235,22 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-[#09090b] space-y-2">
           <div className="flex flex-col space-y-1">
+            <Link
+              href="/"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 text-left"
+            >
+              <FileText className="h-4 w-4" />
+              <span>Photo to PDF</span>
+            </Link>
+            <Link
+              href="/convert"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 text-left"
+            >
+              <FileText className="h-4 w-4 text-emerald-500" />
+              <span>PDF Converter Suite</span>
+            </Link>
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
