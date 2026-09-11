@@ -22,7 +22,11 @@ import { CONVERTER_TOOLS, getToolById, isValidToolId } from '@/lib/converters/to
 import { ToolId, ConversionStatus, ConversionOutputResult } from '@/lib/converters/types';
 import { processConversion } from '@/lib/converters';
 
-export const ConverterHub: React.FC = () => {
+interface ConverterHubProps {
+  hideHeader?: boolean;
+}
+
+export const ConverterHub: React.FC<ConverterHubProps> = ({ hideHeader = false }) => {
   const searchParams = useSearchParams();
   const initialToolParam = searchParams.get('tool');
 
@@ -112,20 +116,22 @@ export const ConverterHub: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 space-y-8" id="converter-hub">
+    <div className={hideHeader ? "w-full space-y-6" : "mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 space-y-8"} id="converter-hub">
       {/* Header section */}
-      <div className="flex flex-col items-center text-center space-y-2">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
-          <Lock className="h-3.5 w-3.5 text-emerald-500" />
-          <span>100% Client-Side • Private & Fast</span>
+      {!hideHeader && (
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-300">
+            <Lock className="h-3.5 w-3.5 text-emerald-500" />
+            <span>100% Client-Side • Private & Fast</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            PDF Converter Suite
+          </h1>
+          <p className="max-w-xl text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
+            High-performance in-browser conversion between PDF, images, Microsoft Office documents, HTML, and archival standards.
+          </p>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-          PDF Converter Suite
-        </h1>
-        <p className="max-w-xl text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
-          High-performance in-browser conversion between PDF, images, Microsoft Office documents, HTML, and archival standards.
-        </p>
-      </div>
+      )}
 
       {/* Tool Selector Section */}
       <div className="rounded-2xl border border-zinc-200/80 bg-white/70 p-4 sm:p-6 backdrop-blur-xs dark:border-zinc-800/80 dark:bg-zinc-900/40 space-y-4">
