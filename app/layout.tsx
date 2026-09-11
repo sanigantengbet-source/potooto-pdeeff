@@ -12,8 +12,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Planner — Photo to PDF',
-  description: 'Convert multiple images into a PDF quickly, securely, and privately with Planner.',
+  title: 'Planner — Photo & Document PDF Converter',
+  description: 'Convert images, Word, Excel, PowerPoint, HTML, and documents to and from PDF quickly, securely, and privately with Planner.',
   applicationName: 'Planner',
   appleWebApp: {
     capable: true,
@@ -29,15 +29,15 @@ export const metadata: Metadata = {
     apple: '/planner-icon.jpg',
   },
   openGraph: {
-    title: 'Planner — Photo to PDF',
-    description: 'Convert multiple images into a PDF quickly, securely, and privately with Planner.',
+    title: 'Planner — Photo & Document PDF Converter',
+    description: 'Convert images, Word, Excel, PowerPoint, HTML, and documents to and from PDF quickly, securely, and privately with Planner.',
     type: 'website',
     siteName: 'Planner',
   },
   twitter: {
     card: 'summary',
-    title: 'Planner — Photo to PDF',
-    description: 'Convert multiple images into a PDF quickly, securely, and privately with Planner.',
+    title: 'Planner — Photo & Document PDF Converter',
+    description: 'Convert images, Word, Excel, PowerPoint, HTML, and documents to and from PDF quickly, securely, and privately with Planner.',
   },
 };
 
