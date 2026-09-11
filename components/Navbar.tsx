@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import {
   FileText,
+  Home,
   Moon,
   Sun,
   Laptop,
@@ -118,9 +119,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Link
             href="/"
             className="rounded-md px-3 py-1.5 font-medium text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:text-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
-            id="nav-link-photo-to-pdf"
+            id="nav-link-home"
           >
-            Photo to PDF
+            Home
+          </Link>
+          <Link
+            href="/pdf-tools"
+            className="rounded-md px-3 py-1.5 font-medium text-zinc-700 hover:text-zinc-900 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:text-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
+            id="nav-link-pdf-tools"
+          >
+            PDF Tools
           </Link>
           <Link
             href="/convert"
@@ -239,9 +247,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               href="/"
               onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 text-left"
+              id="mobile-nav-home"
             >
-              <FileText className="h-4 w-4" />
-              <span>Photo to PDF</span>
+              <Home className="h-4 w-4" />
+              <span>Home</span>
+            </Link>
+            <Link
+              href="/pdf-tools"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800 text-left"
+              id="mobile-nav-pdf-tools"
+            >
+              <FileText className="h-4 w-4 text-sky-500" />
+              <span>PDF Tools (16 Fitur)</span>
             </Link>
             <Link
               href="/convert"
