@@ -452,6 +452,52 @@ export default function PhotoToPdfPage() {
                 </Link>
               </div>
 
+              {/* AI Tool Spotlight: Background Remover */}
+              <div className="w-full max-w-2xl">
+                <Link
+                  href="/background-remover"
+                  className="group block rounded-2xl border border-violet-200/90 bg-gradient-to-br from-violet-50/50 via-white to-purple-50/30 p-5 sm:p-6 transition-all duration-200 hover:border-violet-400 hover:shadow-md dark:border-violet-900/60 dark:from-violet-950/20 dark:via-zinc-900/80 dark:to-zinc-900/60 dark:hover:border-violet-700"
+                  id="card-ai-bg-remover"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5 min-w-0">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-200 bg-violet-100/80 text-violet-700 dark:border-violet-800/80 dark:bg-violet-950 dark:text-violet-300 mt-0.5">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+                            AI Background Remover
+                          </h3>
+                          <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-300">
+                            WebGPU & WASM AI
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                          Hapus background foto secara instan langsung di peramban. Tanpa kirim foto ke server, tanpa kuota, dan ekspor PNG transparan beresolusi penuh.
+                        </p>
+                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                          {['WebGPU', 'WASM Fallback', 'BiRefNet / RMBG', 'Client-Side AI', 'PNG Transparan'].map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded border border-violet-200/70 bg-violet-50/60 px-1.5 py-0.5 font-mono text-[10px] text-violet-700 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-300"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end pt-1 sm:pt-0 shrink-0">
+                      <span className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition-all group-hover:bg-violet-700 active:scale-[0.98]">
+                        <span>Coba Background Remover</span>
+                        <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+
               {/* Explanatory Cards: PDF Tools vs Converter Suite */}
               <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="rounded-xl border border-zinc-200/80 bg-white p-4 sm:p-5 dark:border-zinc-800 dark:bg-zinc-900/60 shadow-2xs space-y-2">
