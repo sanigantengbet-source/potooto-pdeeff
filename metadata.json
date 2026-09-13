@@ -1,6 +1,6 @@
 {
   "name": "Planner",
-  "description": "All-in-one private PDF toolkit: Photo to PDF, PDF Converter Suite, and 16 client-side PDF Tools (Merge, Split, Compress, Organize, Sign, Watermark, Protect, Unlock, Edit, Repair).",
+  "description": "All-in-one private PDF & AI toolkit: AI Background Remover (WebGPU/WASM), Photo to PDF, PDF Converter Suite, and 16 client-side PDF Tools (Merge, Split, Compress, Organize, Sign, Watermark, Protect, Unlock).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
