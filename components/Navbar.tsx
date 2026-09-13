@@ -17,6 +17,7 @@ import {
   X,
   Users,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 import { usePWAInstall } from '@/hooks/use-pwa-install';
 
@@ -136,6 +137,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             id="nav-link-convert"
           >
             PDF Converter
+          </Link>
+          <Link
+            href="/background-remover"
+            className="flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-violet-700 hover:text-violet-800 hover:bg-violet-50 dark:text-violet-400 dark:hover:text-violet-300 dark:hover:bg-violet-950/40 transition-colors"
+            id="nav-link-bg-remover"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+            <span>BG Remover</span>
+            <span className="ml-0.5 rounded-full bg-violet-100 px-1.5 py-0.2 text-[9px] font-bold text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+              AI
+            </span>
           </Link>
           <button
             type="button"
@@ -268,6 +280,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <FileText className="h-4 w-4 text-emerald-500" />
               <span>PDF Converter Suite</span>
+            </Link>
+            <Link
+              href="/background-remover"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50 dark:text-violet-400 dark:hover:bg-violet-950/40 text-left"
+              id="mobile-nav-bg-remover"
+            >
+              <Sparkles className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              <span>AI Background Remover</span>
+              <span className="ml-auto rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950 dark:text-violet-300">
+                Baru
+              </span>
             </Link>
             <button
               onClick={() => {
