@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  output: process.env.VERCEL ? undefined : 'standalone',
+  output: 'standalone',
   transpilePackages: ['motion'],
   webpack: (config, {dev, webpack}) => {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
@@ -34,10 +34,14 @@ const nextConfig: NextConfig = {
     config.resolve.alias = {
       ...config.resolve.alias,
       canvas: false,
+      'onnxruntime-node': false,
+      sharp: false,
     };
 
     config.resolve.fallback = {
       ...config.resolve.fallback,
+      'onnxruntime-node': false,
+      sharp: false,
       canvas: false,
       fs: false,
       path: false,
