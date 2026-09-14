@@ -73,7 +73,6 @@ export const BackgroundRemoverHub: React.FC = () => {
   // Copy & Action feedback
   const [copySuccess, setCopySuccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // Hardware detection on mount
   useEffect(() => {
@@ -471,86 +470,94 @@ export const BackgroundRemoverHub: React.FC = () => {
               <button
                 type="button"
                 onClick={handleReset}
-                className="flex items-center gap-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200/80 dark:border-zinc-700/80 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 <span>Proses Foto Lain</span>
               </button>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              {/* Primary: Download Transparent PNG */}
-              <button
-                type="button"
-                onClick={handleDownloadPng}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-xs shadow-xs transition-colors"
-                id="btn-download-png"
-              >
-                <Download className="h-4 w-4" />
-                <span>Download PNG Transparan</span>
-              </button>
+            {/* Action Buttons: Download & Utilities */}
+            <div className="space-y-2.5">
+              {/* Primary Downloads Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* 1. Primary: Download Transparent PNG */}
+                <button
+                  type="button"
+                  onClick={handleDownloadPng}
+                  className="w-full flex items-center justify-center gap-2.5 px-4 py-3 sm:py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 active:scale-[0.98] text-white font-semibold text-xs sm:text-sm shadow-sm transition-all duration-150"
+                  id="btn-download-png"
+                >
+                  <Download className="h-4 w-4 shrink-0" />
+                  <span>Download PNG Transparan</span>
+                </button>
 
-              {/* Secondary: Download Solid Color JPG */}
-              <button
-                type="button"
-                onClick={handleDownloadSolid}
-                disabled={isDownloading}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700 text-xs font-semibold transition-colors disabled:opacity-50"
-                id="btn-download-solid-jpg"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>
-                  Download JPG ({activeBgColor === 'transparent' ? 'Latar Putih' : 'Latar Warna'})
-                </span>
-              </button>
+                {/* 2. Secondary: Download Solid Color JPG */}
+                <button
+                  type="button"
+                  onClick={handleDownloadSolid}
+                  disabled={isDownloading}
+                  className="w-full flex items-center justify-center gap-2.5 px-4 py-3 sm:py-2.5 rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 active:scale-[0.98] text-zinc-800 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 text-xs sm:text-sm font-semibold transition-all duration-150 disabled:opacity-50"
+                  id="btn-download-solid-jpg"
+                >
+                  <Download className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                  <span>
+                    Download JPG ({activeBgColor === 'transparent' ? 'Latar Putih' : 'Latar Warna'})
+                  </span>
+                </button>
+              </div>
 
-              {/* Copy to Clipboard */}
-              <button
-                type="button"
-                onClick={handleCopyToClipboard}
-                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 text-xs font-medium transition-colors"
-                title="Salin PNG ke Clipboard"
-              >
-                {copySuccess ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                      Tersalin!
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3.5 w-3.5" />
-                    <span>Salin</span>
-                  </>
-                )}
-              </button>
+              {/* Utility Tools Row: Salin & Jadikan PDF */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {/* 3. Salin ke Clipboard */}
+                <button
+                  type="button"
+                  onClick={handleCopyToClipboard}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-zinc-200/90 bg-white hover:bg-zinc-50 active:scale-[0.98] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 text-xs font-medium transition-all shadow-2xs"
+                  title="Salin PNG ke Clipboard"
+                  id="btn-copy-clipboard"
+                >
+                  {copySuccess ? (
+                    <>
+                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 stroke-[2.5] shrink-0" />
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold truncate">
+                        Tersalin!
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 text-zinc-500 dark:text-zinc-400 shrink-0" />
+                      <span className="truncate">Salin Gambar</span>
+                    </>
+                  )}
+                </button>
 
-              {/* Send to Photo to PDF Workspace */}
-              <Link
-                href="/"
-                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/80 text-zinc-700 dark:text-zinc-300 text-xs font-medium transition-colors ml-auto"
-                title="Buka di PDF Workspace"
-              >
-                <Layers className="h-3.5 w-3.5 text-sky-500" />
-                <span>Jadikan PDF</span>
-              </Link>
+                {/* 4. Jadikan PDF */}
+                <Link
+                  href="/"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-zinc-200/90 bg-white hover:bg-zinc-50 active:scale-[0.98] dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 text-xs font-medium transition-all shadow-2xs"
+                  title="Buka di PDF Workspace"
+                  id="btn-convert-to-pdf"
+                >
+                  <Layers className="h-4 w-4 text-sky-500 shrink-0" />
+                  <span className="truncate">Jadikan PDF</span>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* FAQ & GUIDANCE SECTION */}
-      <div className="pt-6 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
+      {/* FAQ & GUIDANCE SECTION - Directly readable without clicking */}
+      <div className="pt-8 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
         <div className="flex items-center gap-2 px-1">
-          <HelpCircle className="h-4 w-4 text-zinc-500" />
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+          <HelpCircle className="h-4 w-4 text-violet-500" />
+          <h2 className="text-sm sm:text-base font-semibold text-zinc-900 dark:text-zinc-100">
             Panduan & Pertanyaan Umum AI Background Remover
           </h2>
         </div>
 
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {[
             {
               q: 'Bagaimana cara kerja AI Background Remover tanpa mengirim foto ke server?',
@@ -558,43 +565,32 @@ export const BackgroundRemoverHub: React.FC = () => {
             },
             {
               q: 'Apakah foto pengguna disimpan atau dipakai untuk pelatihan AI?',
-              a: 'Sama sekali tidak. Foto Anda 100% diproses di memori RAM lokal peramban. Tidak ada piksel foto yang diunggah ke internet, server cloud, atau pihak ketiga.',
+              a: 'Sama sekali tidak. Foto Anda 100% diproses di memori RAM lokal peramban. Tidak ada piksel foto yang diunggah ke internet, server cloud, atau pihak ketiga. Privasi foto Anda terjamin aman sepenuhnya.',
             },
             {
               q: 'Mengapa pemrosesan pertama membutuhkan waktu beberapa detik?',
-              a: 'Pada proses pertama kali, peramban mengunduh bobot model AI terkompresi dan menyimpannya di cache peramban lokal (IndexedDB). Setelah tersimpan di cache, proses berikutnya akan berjalan instan bahkan tanpa koneksi internet yang cepat.',
+              a: 'Pada proses pertama kali, peramban mengunduh bobot model AI terkompresi dan menyimpannya di cache peramban lokal (IndexedDB / Cache API). Setelah tersimpan di cache, proses berikutnya akan berjalan instan bahkan tanpa koneksi internet yang cepat.',
             },
             {
               q: 'Bagaimana cara mendapatkan hasil terbaik untuk subjek foto?',
               a: 'Model BiRefNet & RMBG sangat handal mendeteksi subjek manusia, rambut, pakaian, hewan peliharaan, serta objek produk (sepatu, tas, barang e-commerce). Pastikan pencahayaan cukup dan subjek utama memiliki kontras yang jelas dengan latar belakang.',
             },
-          ].map((item, idx) => {
-            const isOpen = openFaq === idx;
-            return (
-              <div
-                key={idx}
-                className="rounded-xl border border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900/60 overflow-hidden"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenFaq(isOpen ? null : idx)}
-                  className="w-full flex items-center justify-between p-3.5 text-left text-xs font-semibold text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                >
-                  <span>{item.q}</span>
-                  <ChevronDown
-                    className={`h-4 w-4 text-zinc-400 transition-transform duration-200 shrink-0 ml-2 ${
-                      isOpen ? 'rotate-180' : ''
-                    }`}
-                  />
-                </button>
-                {isOpen && (
-                  <div className="p-3.5 pt-0 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed border-t border-zinc-100 dark:border-zinc-800/60 mt-1">
-                    {item.a}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          ].map((item, idx) => (
+            <div
+              key={idx}
+              className="p-4 rounded-xl border border-zinc-200/80 bg-white dark:border-zinc-800 dark:bg-zinc-900/60 space-y-2"
+            >
+              <h3 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 flex items-start gap-2 leading-snug">
+                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-700 dark:bg-violet-950 dark:text-violet-300 mt-0.5">
+                  {idx + 1}
+                </span>
+                <span>{item.q}</span>
+              </h3>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed pl-6">
+                {item.a}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
