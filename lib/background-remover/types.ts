@@ -30,6 +30,10 @@ export interface ModelProgress {
 }
 
 export type ModelVariant = 'rmbg-1.4' | 'birefnet';
+export type SupportedModelId =
+  | 'onnx-community/BiRefNet-ONNX'
+  | 'briaai/RMBG-1.4'
+  | 'Xenova/modnet';
 
 export interface ProcessOptions {
   modelVariant?: ModelVariant;
