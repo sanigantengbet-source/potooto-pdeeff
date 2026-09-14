@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" rx="56" fill="#09090b"/>
+  <rect x="52" y="56" width="110" height="130" rx="12" fill="#27272a" stroke="#3f3f46" stroke-width="4"/>
+  <rect x="94" y="80" width="110" height="130" rx="12" fill="#fafafa" stroke="#e4e4e7" stroke-width="4"/>
+  <circle cx="168" cy="118" r="12" fill="#ef4444"/>
+  <path d="M106 182 L138 140 L166 172 L182 152 L196 182 Z" fill="#71717a"/>
+  <rect x="52" y="180" width="48" height="22" rx="4" fill="#dc2626"/>
+  <text x="58" y="196" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="800" fill="#ffffff" letter-spacing="1">PDF</text>
+</svg>
