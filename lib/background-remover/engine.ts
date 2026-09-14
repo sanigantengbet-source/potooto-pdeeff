@@ -2,13 +2,14 @@ import {
   HardwareSupport,
   ModelProgress,
   ModelVariant,
+  SupportedModelId,
   ProcessOptions,
   ProcessResult,
   RuntimeDevice,
 } from './types';
 import { detectHardwareCapabilities, isMobileOrLowPowerDevice } from './detector';
 
-// Cache loaded pipelines in memory for instant subsequent runs
+// Cache loaded pipelines in memory for fallback runs
 const pipelineCache: Record<string, any> = {};
 
 // Deduplicate in-flight loading promises
@@ -16,6 +17,27 @@ const activeLoadingPromises = new Map<
   string,
   Promise<{ pipeline: any; runtime: RuntimeDevice; modelName: string }>
 >();
+
+let workerInstance: Worker | null = null;
+let currentTaskId = 0;
+
+function getWorker(): Worker | null {
+  if (typeof window === 'undefined') return null;
+  if (!workerInstance) {
+    try {
+      workerInstance = new Worker(new URL('./worker.ts', import.meta.url), {
+        type: 'module',
+      });
+    } catch (err) {
+      console.warn(
+        '[BackgroundRemover] Web Worker initialization failed, falling back to main-thread processing:',
+        err
+      );
+      workerInstance = null;
+    }
+  }
+  return workerInstance;
+}
 
 /**
  * Check if the model is already stored in browser Cache API or localStorage.
@@ -54,6 +76,9 @@ export class BackgroundRemoverEngine {
 
   public abort() {
     this.isAborted = true;
+    if (workerInstance) {
+      workerInstance.postMessage({ type: 'abort' });
+    }
   }
 
   /**
@@ -71,14 +96,13 @@ export class BackgroundRemoverEngine {
     const targetDevice: RuntimeDevice =
       forceDevice || (hardware.webgpu ? 'webgpu' : 'wasm');
 
-    const modelId: string =
+    const modelId: SupportedModelId =
       variant === 'birefnet'
         ? 'onnx-community/BiRefNet-ONNX'
         : 'briaai/RMBG-1.4';
 
     const cacheKey = `${modelId}:${targetDevice}`;
 
-    // Check in-memory instance
     if (pipelineCache[cacheKey]) {
       this.activePipeline = pipelineCache[cacheKey];
       this.currentModelVariant = variant;
@@ -86,7 +110,7 @@ export class BackgroundRemoverEngine {
       onProgress?.({
         status: 'loading',
         stage: 'using-cached-model',
-        message: 'Using cached model',
+        message: 'Menggunakan model dari cache',
         progress: 100,
         runtime: targetDevice,
         webgpuAvailable: hardware.webgpu,
@@ -99,14 +123,12 @@ export class BackgroundRemoverEngine {
       };
     }
 
-    // Check if loading is already in-flight to prevent duplicate downloads
     const existingTask = activeLoadingPromises.get(cacheKey);
     if (existingTask) {
       return existingTask;
     }
 
     const loadTask = (async () => {
-      // 2. Check browser persistence cache
       const isCached = await isModelCachedInBrowser(modelId);
       const isFirstTime = !isCached;
 
@@ -114,7 +136,7 @@ export class BackgroundRemoverEngine {
         onProgress?.({
           status: 'loading',
           stage: 'using-cached-model',
-          message: 'Using cached model',
+          message: 'Menggunakan model dari cache',
           progress: 100,
           runtime: targetDevice,
           webgpuAvailable: hardware.webgpu,
@@ -124,7 +146,7 @@ export class BackgroundRemoverEngine {
         onProgress?.({
           status: 'downloading',
           stage: 'preparing-model',
-          message: 'Preparing model...',
+          message: 'Mempersiapkan model AI...',
           progress: 0,
           runtime: targetDevice,
           webgpuAvailable: hardware.webgpu,
@@ -132,33 +154,24 @@ export class BackgroundRemoverEngine {
         });
       }
 
-      // Dynamically import transformers.js to prevent SSR issues
       const { pipeline, env, AutoConfig } = await import(
         '@huggingface/transformers'
       );
 
-      // Configure client-side environment for browser cache persistence
       env.allowLocalModels = false;
       env.useBrowserCache = true;
 
-      // Optimize ONNX wasm threading to prevent starving the UI event loop
       if (env.backends?.onnx?.wasm) {
-        const hardwareConcurrency =
-          typeof navigator !== 'undefined' && navigator.hardwareConcurrency
-            ? navigator.hardwareConcurrency
-            : 4;
-        const safeThreads = Math.max(1, Math.min(3, hardwareConcurrency - 1));
-        env.backends.onnx.wasm.numThreads = safeThreads;
+        env.backends.onnx.wasm.numThreads = 1;
         env.backends.onnx.wasm.simd = true;
+        env.backends.onnx.wasm.proxy = false;
       }
 
-      // Real progress callback following actual byte downloads
       let lastProgressTick = 0;
       const progressCallback = (info: any) => {
         if (this.isAborted) return;
         if (info.status === 'progress') {
           const now = performance.now();
-          // Throttle UI progress dispatches to prevent React state churn freeze
           if (now - lastProgressTick < 80 && info.progress < 100) return;
           lastProgressTick = now;
 
@@ -170,7 +183,7 @@ export class BackgroundRemoverEngine {
             status: 'downloading',
             stage: 'preparing-model',
             progress: realPercent,
-            message: 'Preparing model...',
+            message: 'Mendownload model AI...',
             runtime: targetDevice,
             webgpuAvailable: hardware.webgpu,
             isFirstTime: true,
@@ -182,7 +195,7 @@ export class BackgroundRemoverEngine {
               status: 'loading',
               stage: 'preparing-model',
               progress: 100,
-              message: 'Preparing model...',
+              message: 'Model AI siap digunakan',
               runtime: targetDevice,
               webgpuAvailable: hardware.webgpu,
               isFirstTime: true,
@@ -191,15 +204,16 @@ export class BackgroundRemoverEngine {
         }
       };
 
-      // Try candidate models: primary requested model first, with fallback to Xenova/modnet if primary model fails
-      const candidateModels: string[] = [
+      const candidateModels: SupportedModelId[] = [
         modelId,
-        ...(modelId !== 'Xenova/modnet' ? ['Xenova/modnet'] : []),
+        ...((modelId as string) !== 'Xenova/modnet'
+          ? (['Xenova/modnet'] as SupportedModelId[])
+          : []),
       ];
 
       let segmenter: any = null;
       let actualRuntime: RuntimeDevice = targetDevice;
-      let usedModelId = modelId;
+      let usedModelId: SupportedModelId = modelId;
       let lastError: any = null;
 
       for (const currentModel of candidateModels) {
@@ -215,12 +229,11 @@ export class BackgroundRemoverEngine {
               conf.model_type = 'segformer';
             }
             modelConfig = conf;
-          } catch (cfgErr) {
-            console.warn('[BackgroundRemover] AutoConfig note:', cfgErr);
+          } catch {
+            // non-critical
           }
         }
 
-        // Try primary device (e.g. WebGPU) first, then CPU/WASM
         const devicesToTry: RuntimeDevice[] =
           targetDevice === 'webgpu' ? ['webgpu', 'wasm'] : ['wasm'];
 
@@ -230,7 +243,7 @@ export class BackgroundRemoverEngine {
               onProgress?.({
                 status: 'loading',
                 stage: 'preparing-model',
-                message: 'WebGPU unavailable • Using WASM fallback',
+                message: 'WebGPU tidak tersedia • Beralih ke WASM',
                 progress: 50,
                 runtime: 'wasm',
                 webgpuAvailable: false,
@@ -239,12 +252,9 @@ export class BackgroundRemoverEngine {
               });
             }
 
-            // Yield control so UI animations render smoothly before compiling ONNX session
-            await new Promise((resolve) => setTimeout(resolve, 50));
+            await new Promise((resolve) => setTimeout(resolve, 30));
 
-            // In browser environment, transformers.js expects 'webgpu' or 'wasm'
             const deviceParam = dev === 'webgpu' ? 'webgpu' : 'wasm';
-
             segmenter = await (pipeline as any)('background-removal', currentModel, {
               ...(modelConfig ? { config: modelConfig } : {}),
               device: deviceParam,
@@ -255,34 +265,19 @@ export class BackgroundRemoverEngine {
             usedModelId = currentModel;
             break;
           } catch (devErr: any) {
-            console.warn(
-              `[BackgroundRemover] Model ${currentModel} on ${dev} failed:`,
-              devErr
-            );
             lastError = devErr;
           }
         }
 
-        if (segmenter) {
-          break;
-        }
+        if (segmenter) break;
       }
 
       if (!segmenter) {
-        try {
-          if (typeof window !== 'undefined') {
-            localStorage.removeItem(`planner_bg_model_cached_${modelId}`);
-          }
-        } catch {
-          // ignore
-        }
-        console.error('[BackgroundRemover] All model candidates failed:', lastError);
         throw new Error(
-          lastError?.message || 'Model gagal dipersiapkan. Silakan coba lagi.'
+          lastError?.message || 'Model AI gagal dipersiapkan. Silakan coba lagi.'
         );
       }
 
-      // Mark model as cached in memory & browser persistence
       pipelineCache[cacheKey] = segmenter;
       try {
         if (typeof window !== 'undefined') {
@@ -290,7 +285,7 @@ export class BackgroundRemoverEngine {
           localStorage.setItem(`planner_bg_model_cached_${usedModelId}`, 'true');
         }
       } catch {
-        // Ignore localStorage quota errors
+        // ignore
       }
 
       this.activePipeline = segmenter;
@@ -305,17 +300,15 @@ export class BackgroundRemoverEngine {
     })();
 
     activeLoadingPromises.set(cacheKey, loadTask);
-
     try {
-      const result = await loadTask;
-      return result;
+      return await loadTask;
     } finally {
       activeLoadingPromises.delete(cacheKey);
     }
   }
 
   /**
-   * Process an image file or object URL to remove the background.
+   * Process an image file or object URL to remove the background with non-blocking execution.
    */
   public async removeBackground(
     source: File | Blob | string,
@@ -325,28 +318,21 @@ export class BackgroundRemoverEngine {
     const startTime = performance.now();
     this.isAborted = false;
 
-    const variant = options.modelVariant || 'rmbg-1.4';
-    const { pipeline: segmenter, runtime: runtimeUsed, modelName } =
-      await this.loadModel(variant, options.forceDevice, onProgress);
+    const hardware = await detectHardwareCapabilities();
 
-    if (this.isAborted) {
-      throw new Error('Proses dibatalkan oleh pengguna.');
-    }
-
-    // Step 1: Preparing image...
     onProgress?.({
       status: 'processing',
       stage: 'preparing-image',
-      progress: 25,
-      message: 'Preparing image...',
-      runtime: runtimeUsed,
-      webgpuAvailable: runtimeUsed === 'webgpu',
+      progress: 10,
+      message: 'Membaca dan mempersiapkan gambar...',
+      runtime: options.forceDevice || (hardware.webgpu ? 'webgpu' : 'wasm'),
+      webgpuAvailable: hardware.webgpu,
     });
 
-    // Yield control briefly to ensure non-blocking browser UI rendering
+    // Yield control so UI renders smoothly
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    // Load original image as an Image element
+    // Load original image to obtain true natural dimensions
     const sourceUrl =
       typeof source === 'string' ? source : URL.createObjectURL(source);
 
@@ -361,20 +347,22 @@ export class BackgroundRemoverEngine {
     const origWidth = origImg.naturalWidth || origImg.width;
     const origHeight = origImg.naturalHeight || origImg.height;
 
-    // Adaptive downscale for memory safety and UI responsiveness:
-    // If the user specified maxDimension, respect it.
-    // If not specified (0) but the input is massive (e.g. >2048px on desktop or >1280px on mobile),
-    // cap the inference input to prevent browser GPU/RAM freeze while preserving original resolution for final mask composite.
+    // Adaptive downscale for inference to keep memory light and lightning fast
     const userMaxDim = options.maxDimension ?? 0;
     const isMobile = isMobileOrLowPowerDevice();
-    const autoCapDim = isMobile ? 1280 : 2048;
+    const autoCapDim = isMobile ? 1024 : 2048;
     const effectiveInferenceMaxDim =
-      userMaxDim > 0 ? userMaxDim : (origWidth > autoCapDim || origHeight > autoCapDim ? autoCapDim : 0);
+      userMaxDim > 0
+        ? userMaxDim
+        : origWidth > autoCapDim || origHeight > autoCapDim
+        ? autoCapDim
+        : 0;
 
-    let inferenceUrl = sourceUrl;
-    let needRevokeInferenceUrl = false;
-
-    if (effectiveInferenceMaxDim > 0 && (origWidth > effectiveInferenceMaxDim || origHeight > effectiveInferenceMaxDim)) {
+    let inferenceBlob: Blob;
+    if (
+      effectiveInferenceMaxDim > 0 &&
+      (origWidth > effectiveInferenceMaxDim || origHeight > effectiveInferenceMaxDim)
+    ) {
       const scale = Math.min(
         effectiveInferenceMaxDim / origWidth,
         effectiveInferenceMaxDim / origHeight
@@ -386,78 +374,248 @@ export class BackgroundRemoverEngine {
       resizeCanvas.width = scaledW;
       resizeCanvas.height = scaledH;
       const resizeCtx = resizeCanvas.getContext('2d');
-      if (resizeCtx) {
-        resizeCtx.drawImage(origImg, 0, 0, scaledW, scaledH);
-        const scaledBlob = await new Promise<Blob | null>((res) =>
-          resizeCanvas.toBlob(res, 'image/png')
-        );
-        if (scaledBlob) {
-          inferenceUrl = URL.createObjectURL(scaledBlob);
-          needRevokeInferenceUrl = true;
-        }
+      if (!resizeCtx) throw new Error('Gagal membuat canvas resize.');
+      resizeCtx.drawImage(origImg, 0, 0, scaledW, scaledH);
+
+      const scaledBlob = await new Promise<Blob | null>((res) =>
+        resizeCanvas.toBlob(res, 'image/jpeg', 0.92)
+      );
+      if (!scaledBlob) throw new Error('Gagal mengompresi gambar untuk inferensi.');
+      inferenceBlob = scaledBlob;
+    } else {
+      if (source instanceof Blob) {
+        inferenceBlob = source;
+      } else {
+        const resp = await fetch(sourceUrl);
+        inferenceBlob = await resp.blob();
       }
     }
 
     if (this.isAborted) {
-      if (needRevokeInferenceUrl) URL.revokeObjectURL(inferenceUrl);
       throw new Error('Proses dibatalkan oleh pengguna.');
     }
 
-    // Step 2: Removing background...
+    // Try executing in Web Worker for 100% non-blocking UI
+    const worker = getWorker();
+    if (worker) {
+      try {
+        const workerResult = await this.executeInWorker(
+          worker,
+          inferenceBlob,
+          options,
+          hardware.webgpu,
+          onProgress
+        );
+
+        if (this.isAborted) {
+          throw new Error('Proses dibatalkan oleh pengguna.');
+        }
+
+        // Composite the mask with original high-resolution image on main thread
+        const finalTransparentBlob = await this.compositeMaskWithImage(
+          origImg,
+          origWidth,
+          origHeight,
+          workerResult.maskData,
+          workerResult.maskWidth,
+          workerResult.maskHeight
+        );
+
+        const transparentUrl = URL.createObjectURL(finalTransparentBlob);
+        const duration = Math.round(performance.now() - startTime);
+
+        onProgress?.({
+          status: 'done',
+          stage: 'done',
+          progress: 100,
+          message: '✓ Background berhasil dihapus',
+          runtime: workerResult.runtimeUsed,
+          webgpuAvailable: workerResult.runtimeUsed === 'webgpu',
+        });
+
+        return {
+          originalUrl: sourceUrl,
+          transparentUrl,
+          transparentBlob: finalTransparentBlob,
+          maskData: workerResult.maskData,
+          width: origWidth,
+          height: origHeight,
+          runtimeUsed: workerResult.runtimeUsed,
+          processingTimeMs: duration,
+          modelUsed: workerResult.modelUsed,
+        };
+      } catch (workerErr: any) {
+        console.warn(
+          '[BackgroundRemover] Web Worker processing failed, falling back to main-thread engine:',
+          workerErr
+        );
+      }
+    }
+
+    // Fallback: Main thread execution with non-blocking slicing
+    return await this.removeBackgroundMainThread(
+      sourceUrl,
+      origImg,
+      origWidth,
+      origHeight,
+      inferenceBlob,
+      options,
+      startTime,
+      onProgress
+    );
+  }
+
+  private executeInWorker(
+    worker: Worker,
+    imageBlob: Blob,
+    options: ProcessOptions,
+    hasWebGpu: boolean,
+    onProgress?: (progress: ModelProgress) => void
+  ): Promise<{
+    maskData: Uint8ClampedArray;
+    maskWidth: number;
+    maskHeight: number;
+    duration: number;
+    runtimeUsed: RuntimeDevice;
+    modelUsed: string;
+  }> {
+    return new Promise((resolve, reject) => {
+      const taskId = ++currentTaskId;
+
+      const messageHandler = (e: MessageEvent) => {
+        const { type, id, payload } = e.data;
+        if (id !== taskId) return;
+
+        if (type === 'progress') {
+          onProgress?.(payload);
+        } else if (type === 'processDone') {
+          worker.removeEventListener('message', messageHandler);
+          resolve(payload);
+        } else if (type === 'error') {
+          worker.removeEventListener('message', messageHandler);
+          reject(new Error(payload.message || 'Worker error'));
+        }
+      };
+
+      worker.addEventListener('message', messageHandler);
+
+      worker.postMessage({
+        type: 'processImage',
+        id: taskId,
+        payload: {
+          imageBlob,
+          options,
+          hasWebGpu,
+        },
+      });
+    });
+  }
+
+  private async compositeMaskWithImage(
+    origImg: HTMLImageElement,
+    origWidth: number,
+    origHeight: number,
+    maskData: Uint8ClampedArray,
+    maskWidth: number,
+    maskHeight: number
+  ): Promise<Blob> {
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = maskWidth;
+    maskCanvas.height = maskHeight;
+    const maskCtx = maskCanvas.getContext('2d');
+    if (!maskCtx) throw new Error('Gagal membuat context canvas mask.');
+
+    const maskImgData = maskCtx.createImageData(maskWidth, maskHeight);
+    const imgData32 = new Uint32Array(maskImgData.data.buffer);
+    for (let i = 0; i < maskData.length; i++) {
+      const val = maskData[i];
+      imgData32[i] = (val << 24) | (val << 16) | (val << 8) | val;
+    }
+    maskCtx.putImageData(maskImgData, 0, 0);
+
+    const finalCanvas = document.createElement('canvas');
+    finalCanvas.width = origWidth;
+    finalCanvas.height = origHeight;
+    const finalCtx = finalCanvas.getContext('2d');
+    if (!finalCtx) throw new Error('Gagal membuat context canvas final.');
+
+    finalCtx.drawImage(origImg, 0, 0, origWidth, origHeight);
+    finalCtx.globalCompositeOperation = 'destination-in';
+    finalCtx.drawImage(maskCanvas, 0, 0, origWidth, origHeight);
+    finalCtx.globalCompositeOperation = 'source-over';
+
+    return new Promise<Blob>((resolve, reject) => {
+      finalCanvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error('Gagal membuat file gambar PNG transparan.'));
+        },
+        'image/png',
+        1.0
+      );
+    });
+  }
+
+  private async removeBackgroundMainThread(
+    sourceUrl: string,
+    origImg: HTMLImageElement,
+    origWidth: number,
+    origHeight: number,
+    inferenceBlob: Blob,
+    options: ProcessOptions,
+    startTime: number,
+    onProgress?: (progress: ModelProgress) => void
+  ): Promise<ProcessResult> {
+    const variant = options.modelVariant || 'rmbg-1.4';
+    const { pipeline: segmenter, runtime: runtimeUsed, modelName } =
+      await this.loadModel(variant, options.forceDevice, onProgress);
+
+    if (this.isAborted) {
+      throw new Error('Proses dibatalkan oleh pengguna.');
+    }
+
     onProgress?.({
       status: 'processing',
       stage: 'removing-bg',
       progress: 60,
-      message: 'Removing background...',
+      message: 'Menghapus latar belakang...',
       runtime: runtimeUsed,
       webgpuAvailable: runtimeUsed === 'webgpu',
     });
 
-    // Generous yield to allow browser layout, paint, and animations to run cleanly before AI inference
     await new Promise((resolve) => setTimeout(resolve, 60));
 
-    // Run segmenter inference
+    const inferenceUrl = URL.createObjectURL(inferenceBlob);
     let output: any;
     try {
       output = await segmenter(inferenceUrl);
-    } catch (err: any) {
-      if (needRevokeInferenceUrl) URL.revokeObjectURL(inferenceUrl);
-      throw new Error(
-        `Inferensi AI gagal: ${err?.message || 'Memori browser mungkin tidak mencukupi.'}`
-      );
     } finally {
-      if (needRevokeInferenceUrl) {
-        URL.revokeObjectURL(inferenceUrl);
-      }
+      URL.revokeObjectURL(inferenceUrl);
     }
 
     if (this.isAborted) {
       throw new Error('Proses dibatalkan oleh pengguna.');
     }
 
-    // Step 3: Finalizing...
     onProgress?.({
       status: 'processing',
       stage: 'finalizing',
       progress: 90,
-      message: 'Finalizing...',
+      message: 'Menyusun hasil akhir...',
       runtime: runtimeUsed,
       webgpuAvailable: runtimeUsed === 'webgpu',
     });
 
-    // Yield control briefly to ensure smooth UI transition to finalizing stage
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => setTimeout(resolve, 30));
 
-    // Extract mask or transparent image
-    let finalCanvas: HTMLCanvasElement;
     let maskData: Uint8ClampedArray;
+    let maskW = 0;
+    let maskH = 0;
 
     if (output && output.data && output.width && output.height) {
-      // output is RawImage
-      const outW = output.width;
-      const outH = output.height;
-
-      maskData = new Uint8ClampedArray(outW * outH);
+      maskW = output.width;
+      maskH = output.height;
+      maskData = new Uint8ClampedArray(maskW * maskH);
       if (output.channels === 4) {
         for (let i = 0; i < maskData.length; i++) {
           maskData[i] = output.data[i * 4 + 3];
@@ -467,89 +625,32 @@ export class BackgroundRemoverEngine {
       } else {
         maskData.fill(255);
       }
-
-      const maskCanvas = document.createElement('canvas');
-      maskCanvas.width = outW;
-      maskCanvas.height = outH;
-      const maskCtx = maskCanvas.getContext('2d');
-      if (!maskCtx) throw new Error('Gagal menginisialisasi canvas context.');
-
-      const maskImgData = maskCtx.createImageData(outW, outH);
-      // Fast typed array transfer using 32-bit Uint32Array view
-      const imgData32 = new Uint32Array(maskImgData.data.buffer);
-      for (let i = 0; i < maskData.length; i++) {
-        const val = maskData[i];
-        imgData32[i] = (val << 24) | (val << 16) | (val << 8) | val;
-      }
-      maskCtx.putImageData(maskImgData, 0, 0);
-
-      finalCanvas = document.createElement('canvas');
-      finalCanvas.width = origWidth;
-      finalCanvas.height = origHeight;
-      const finalCtx = finalCanvas.getContext('2d');
-      if (!finalCtx) throw new Error('Gagal menginisialisasi canvas context.');
-
-      finalCtx.drawImage(origImg, 0, 0, origWidth, origHeight);
-      finalCtx.globalCompositeOperation = 'destination-in';
-      finalCtx.drawImage(maskCanvas, 0, 0, origWidth, origHeight);
-      finalCtx.globalCompositeOperation = 'source-over';
     } else if (Array.isArray(output) && output[0]?.mask) {
-      // output is from ImageSegmentationPipeline: [{ mask: RawImage }]
       const maskRaw = output[0].mask;
-      const outW = maskRaw.width;
-      const outH = maskRaw.height;
+      maskW = maskRaw.width;
+      maskH = maskRaw.height;
       maskData = new Uint8ClampedArray(maskRaw.data);
-
-      const maskCanvas = document.createElement('canvas');
-      maskCanvas.width = outW;
-      maskCanvas.height = outH;
-      const maskCtx = maskCanvas.getContext('2d');
-      if (!maskCtx) throw new Error('Gagal menginisialisasi canvas context.');
-
-      const maskImgData = maskCtx.createImageData(outW, outH);
-      // Fast typed array transfer using 32-bit Uint32Array view
-      const imgData32 = new Uint32Array(maskImgData.data.buffer);
-      for (let i = 0; i < maskData.length; i++) {
-        const val = maskData[i];
-        imgData32[i] = (val << 24) | (val << 16) | (val << 8) | val;
-      }
-      maskCtx.putImageData(maskImgData, 0, 0);
-
-      finalCanvas = document.createElement('canvas');
-      finalCanvas.width = origWidth;
-      finalCanvas.height = origHeight;
-      const finalCtx = finalCanvas.getContext('2d');
-      if (!finalCtx) throw new Error('Gagal menginisialisasi canvas context.');
-
-      finalCtx.drawImage(origImg, 0, 0, origWidth, origHeight);
-      finalCtx.globalCompositeOperation = 'destination-in';
-      finalCtx.drawImage(maskCanvas, 0, 0, origWidth, origHeight);
-      finalCtx.globalCompositeOperation = 'source-over';
     } else {
       throw new Error('Format output model tidak dikenal.');
     }
 
-    // Export transparent PNG blob
-    const transparentBlob = await new Promise<Blob>((resolve, reject) => {
-      finalCanvas.toBlob(
-        (blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Gagal mengonversi canvas ke Blob PNG.'));
-        },
-        'image/png',
-        1.0
-      );
-    });
+    const transparentBlob = await this.compositeMaskWithImage(
+      origImg,
+      origWidth,
+      origHeight,
+      maskData,
+      maskW,
+      maskH
+    );
 
     const transparentUrl = URL.createObjectURL(transparentBlob);
     const duration = Math.round(performance.now() - startTime);
 
-    // Step 4: Completed
     onProgress?.({
       status: 'done',
       stage: 'done',
       progress: 100,
-      message: '✓ Background removed',
+      message: '✓ Background berhasil dihapus',
       runtime: runtimeUsed,
       webgpuAvailable: runtimeUsed === 'webgpu',
     });
@@ -569,6 +670,10 @@ export class BackgroundRemoverEngine {
 
   public dispose() {
     this.activePipeline = null;
+    if (workerInstance) {
+      workerInstance.terminate();
+      workerInstance = null;
+    }
   }
 }
 
