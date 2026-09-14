@@ -1,5 +1,4 @@
 import type {NextConfig} from 'next';
-import path from 'path';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -16,15 +15,14 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'picsum.photos',
         port: '',
-        pathname: '/**', // This allows any path under the hostname
+        pathname: '/**',
       },
     ],
   },
   output: 'standalone',
   transpilePackages: ['motion'],
-  webpack: (config, {dev, webpack}) => {
+  webpack: (config, {dev, isServer, webpack}) => {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
-    // Do not modify—file watching is disabled to prevent flickering during agent edits.
     if (dev && process.env.DISABLE_HMR === 'true') {
       config.watchOptions = {
         ignored: /.*/,
@@ -40,23 +38,29 @@ const nextConfig: NextConfig = {
 
     config.resolve.fallback = {
       ...config.resolve.fallback,
+      canvas: false,
       'onnxruntime-node': false,
       sharp: false,
-      canvas: false,
-      fs: false,
-      path: false,
-      https: false,
-      http: false,
-      url: false,
-      os: false,
-      stream: false,
     };
 
-    config.plugins.push(
-      new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: any) => {
-        resource.request = resource.request.replace(/^node:/, '');
-      })
-    );
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        https: false,
+        http: false,
+        url: false,
+        os: false,
+        stream: false,
+      };
+
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: any) => {
+          resource.request = resource.request.replace(/^node:/, '');
+        })
+      );
+    }
 
     return config;
   },
