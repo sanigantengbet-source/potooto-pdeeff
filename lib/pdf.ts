@@ -1,10 +1,10 @@
-import { PDFDocument } from 'pdf-lib';
-import { ImageItem, processImageForPdf, QualitySetting } from './image';
+import { PDFDocument, rgb } from 'pdf-lib';
+import { ImageItem, QualitySetting } from './image';
 
 export type PageSizeOption = 'a4' | 'a5' | 'letter' | 'legal' | 'original';
-export type OrientationOption = 'auto' | 'portrait' | 'landscape';
+export type OrientationOption = 'portrait' | 'landscape' | 'auto';
 export type MarginOption = 'none' | 'small' | 'medium' | 'large';
-export type ImageFitOption = 'contain' | 'cover' | 'stretch';
+export type ImageFitOption = 'contain' | 'cover' | 'fill';
 
 export interface PdfSettingsConfig {
   pageSize: PageSizeOption;
@@ -12,234 +12,187 @@ export interface PdfSettingsConfig {
   margin: MarginOption;
   imageFit: ImageFitOption;
   quality: QualitySetting;
+  autoRotate: boolean;
+  pageNumbers: boolean;
+  pdfTitle: string;
+  customFilename: string;
   filename?: string;
 }
 
 export const DEFAULT_PDF_SETTINGS: PdfSettingsConfig = {
   pageSize: 'a4',
   orientation: 'auto',
-  margin: 'small',
+  margin: 'none',
   imageFit: 'contain',
   quality: 'high',
+  autoRotate: true,
+  pageNumbers: false,
+  pdfTitle: '',
+  customFilename: '',
   filename: '',
 };
 
-// Dimensions in standard PDF points (72 points = 1 inch)
-const PAGE_DIMENSIONS: Record<Exclude<PageSizeOption, 'original'>, [number, number]> = {
+export interface GeneratedPdfResult {
+  blob: Blob;
+  url: string;
+  filename: string;
+  size: number;
+  pageCount: number;
+  createdAt: string;
+}
+
+const PAGE_DIMS_PT: Record<Exclude<PageSizeOption, 'original'>, [number, number]> = {
   a4: [595.28, 841.89],
   a5: [419.53, 595.28],
   letter: [612, 792],
   legal: [612, 1008],
 };
 
-const MARGIN_POINTS: Record<MarginOption, number> = {
+const MARGIN_PT: Record<MarginOption, number> = {
   none: 0,
-  small: 18, // 0.25 inch
-  medium: 36, // 0.50 inch
-  large: 54, // 0.75 inch
+  small: 20,
+  medium: 36,
+  large: 54,
 };
 
-export interface PdfProgressCallback {
-  (progress: number, stage: string): void;
-}
-
-export interface GeneratedPdfResult {
-  blob: Blob;
-  url: string;
-  size: number;
-  pageCount: number;
-  filename: string;
+export function formatPdfFilename(customName?: string): string {
+  if (customName && customName.trim()) {
+    let name = customName.trim();
+    if (!name.toLowerCase().endsWith('.pdf')) {
+      name += '.pdf';
+    }
+    return name;
+  }
+  const date = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const timestamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(
+    date.getDate()
+  )}_${pad(date.getHours())}${pad(date.getMinutes())}`;
+  return `photo-to-pdf_${timestamp}.pdf`;
 }
 
 export async function generatePdfFromImages(
-  items: ImageItem[],
+  images: ImageItem[],
   settings: PdfSettingsConfig,
-  onProgress?: PdfProgressCallback
+  onProgress?: (percent: number, stage: string) => void
 ): Promise<GeneratedPdfResult> {
-  if (!items.length) {
-    throw new Error('Please add at least one image to create a PDF.');
+  if (images.length === 0) {
+    throw new Error('Tidak ada gambar untuk dikonversi.');
   }
 
-  onProgress?.(5, 'Preparing images...');
-  await yieldToMain();
-
+  onProgress?.(10, 'Menginisialisasi dokumen PDF...');
   const pdfDoc = await PDFDocument.create();
 
-  // Set document metadata
-  pdfDoc.setTitle('Photo to PDF Document');
-  pdfDoc.setProducer('Photo to PDF (Client-side Engine)');
-  pdfDoc.setCreator('Photo to PDF');
-  pdfDoc.setCreationDate(new Date());
+  if (settings.pdfTitle) {
+    pdfDoc.setTitle(settings.pdfTitle);
+  }
+  pdfDoc.setProducer('Planner Studio Photo to PDF');
+  pdfDoc.setCreator('Planner');
 
-  const total = items.length;
-  const marginPt = MARGIN_POINTS[settings.margin];
+  const total = images.length;
 
   for (let i = 0; i < total; i++) {
-    const item = items[i];
-    const itemNum = i + 1;
-    const progressPercent = Math.round(10 + (i / total) * 75);
+    const item = images[i];
+    const pct = Math.round(15 + ((i + 1) / total) * 70);
+    onProgress?.(pct, `Memproses gambar ${i + 1} dari ${total}: ${item.name}`);
 
-    onProgress?.(
-      progressPercent,
-      `Processing image ${itemNum} of ${total}: "${truncateFilename(item.name)}"`
-    );
-    await yieldToMain();
+    // Read image buffer
+    const arrayBuffer = await item.file.arrayBuffer();
 
-    // 1. Process image according to rotation and quality
-    const processed = await processImageForPdf(item, settings.quality);
+    let embeddedImage: any;
+    const mimeType = (item.file.type || item.type || '').toLowerCase();
+    const isPng = mimeType.includes('png') || item.name.toLowerCase().endsWith('.png');
 
-    // 2. Embed into PDF document
-    let embeddedImg;
-    if (processed.format === 'png') {
-      embeddedImg = await pdfDoc.embedPng(processed.bytes);
-    } else {
-      embeddedImg = await pdfDoc.embedJpg(processed.bytes);
+    try {
+      if (isPng) {
+        embeddedImage = await pdfDoc.embedPng(arrayBuffer);
+      } else {
+        embeddedImage = await pdfDoc.embedJpg(arrayBuffer);
+      }
+    } catch {
+      // Fallback to JPG embedding
+      embeddedImage = await pdfDoc.embedJpg(arrayBuffer);
     }
 
-    // 3. Determine Page Dimensions and Orientation
+    const naturalWidth = embeddedImage.width;
+    const naturalHeight = embeddedImage.height;
+
+    // Determine target page width and height
     let pageWidth: number;
     let pageHeight: number;
 
     if (settings.pageSize === 'original') {
-      // Scale down excessively large pixel dimensions so PDF viewing coordinates stay normalized
-      const scaleFactor = Math.min(1, 1400 / Math.max(processed.width, processed.height));
-      const normalizedW = processed.width * scaleFactor;
-      const normalizedH = processed.height * scaleFactor;
-
-      pageWidth = normalizedW + marginPt * 2;
-      pageHeight = normalizedH + marginPt * 2;
+      pageWidth = naturalWidth;
+      pageHeight = naturalHeight;
     } else {
-      const [stdW, stdH] = PAGE_DIMENSIONS[settings.pageSize];
-      const minDim = Math.min(stdW, stdH);
-      const maxDim = Math.max(stdW, stdH);
-
-      if (settings.orientation === 'portrait') {
-        pageWidth = minDim;
-        pageHeight = maxDim;
-      } else if (settings.orientation === 'landscape') {
-        pageWidth = maxDim;
-        pageHeight = minDim;
+      const [stdW, stdH] = PAGE_DIMS_PT[settings.pageSize] || PAGE_DIMS_PT.a4;
+      if (settings.orientation === 'landscape') {
+        pageWidth = Math.max(stdW, stdH);
+        pageHeight = Math.min(stdW, stdH);
+      } else if (settings.orientation === 'portrait') {
+        pageWidth = Math.min(stdW, stdH);
+        pageHeight = Math.max(stdW, stdH);
       } else {
-        // Auto orientation: match image aspect ratio
-        if (processed.width > processed.height) {
-          pageWidth = maxDim;
-          pageHeight = minDim;
+        // 'auto'
+        if (naturalWidth > naturalHeight) {
+          pageWidth = Math.max(stdW, stdH);
+          pageHeight = Math.min(stdW, stdH);
         } else {
-          pageWidth = minDim;
-          pageHeight = maxDim;
+          pageWidth = Math.min(stdW, stdH);
+          pageHeight = Math.max(stdW, stdH);
         }
       }
     }
 
-    // Add page
-    const page = pdfDoc.addPage([pageWidth, pageHeight]);
-
-    // 4. Calculate Printable Area and Placement
-    const printableWidth = Math.max(1, pageWidth - marginPt * 2);
-    const printableHeight = Math.max(1, pageHeight - marginPt * 2);
+    const margin = MARGIN_PT[settings.margin] ?? 0;
+    const printableWidth = Math.max(10, pageWidth - margin * 2);
+    const printableHeight = Math.max(10, pageHeight - margin * 2);
 
     let drawWidth = printableWidth;
     let drawHeight = printableHeight;
-    let x = marginPt;
-    let y = marginPt;
 
-    if (settings.imageFit === 'contain') {
+    if (settings.imageFit === 'contain' || settings.pageSize === 'original') {
       const scale = Math.min(
-        printableWidth / processed.width,
-        printableHeight / processed.height
+        printableWidth / naturalWidth,
+        printableHeight / naturalHeight
       );
-      drawWidth = processed.width * scale;
-      drawHeight = processed.height * scale;
-      x = marginPt + (printableWidth - drawWidth) / 2;
-      y = marginPt + (printableHeight - drawHeight) / 2;
+      drawWidth = naturalWidth * scale;
+      drawHeight = naturalHeight * scale;
     } else if (settings.imageFit === 'cover') {
       const scale = Math.max(
-        printableWidth / processed.width,
-        printableHeight / processed.height
+        printableWidth / naturalWidth,
+        printableHeight / naturalHeight
       );
-      drawWidth = processed.width * scale;
-      drawHeight = processed.height * scale;
-      x = marginPt + (printableWidth - drawWidth) / 2;
-      y = marginPt + (printableHeight - drawHeight) / 2;
-    } else {
-      // 'stretch'
-      drawWidth = printableWidth;
-      drawHeight = printableHeight;
-      x = marginPt;
-      y = marginPt;
+      drawWidth = naturalWidth * scale;
+      drawHeight = naturalHeight * scale;
     }
 
-    page.drawImage(embeddedImg, {
-      x,
-      y,
+    const drawX = margin + (printableWidth - drawWidth) / 2;
+    const drawY = margin + (printableHeight - drawHeight) / 2;
+
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    page.drawImage(embeddedImage, {
+      x: drawX,
+      y: drawY,
       width: drawWidth,
       height: drawHeight,
     });
   }
 
-  onProgress?.(90, 'Finalizing PDF document...');
-  await yieldToMain();
-
+  onProgress?.(90, 'Menyusun berkas PDF final...');
   const pdfBytes = await pdfDoc.save();
 
-  onProgress?.(98, 'Creating file...');
-  await yieldToMain();
-
+  onProgress?.(100, 'Dokumen PDF siap!');
   const blob = new Blob([pdfBytes as unknown as BlobPart], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
-
-  const filename = formatPdfFilename(settings.filename);
-
-  onProgress?.(100, 'Done!');
+  const filename = formatPdfFilename(settings.filename || settings.customFilename);
 
   return {
     blob,
     url,
+    filename,
     size: blob.size,
     pageCount: total,
-    filename,
+    createdAt: new Date().toISOString(),
   };
-}
-
-/**
- * Format and sanitize user-provided PDF filename.
- * Preserves letters, numbers, spaces, hyphens, underscores, dots, etc.
- * Handles case-insensitive .pdf extension and defaults to 'photos-to-pdf.pdf'.
- */
-export function formatPdfFilename(input?: string): string {
-  if (!input) {
-    return 'photos-to-pdf.pdf';
-  }
-
-  // Remove filesystem forbidden characters: / \ : * ? " < > | and control chars
-  const sanitized = input.replace(/[/\\:*?"<>|\x00-\x1f\x7f-\x9f]/g, '').trim();
-
-  // If sanitized is empty or only whitespace/dots, fallback to default
-  if (!sanitized || /^[.\s]+$/.test(sanitized)) {
-    return 'photos-to-pdf.pdf';
-  }
-
-  // Check if extension already ends with .pdf (case-insensitive)
-  if (/\.pdf$/i.test(sanitized)) {
-    return sanitized;
-  }
-
-  return `${sanitized}.pdf`;
-}
-
-function truncateFilename(name: string, maxLen = 20): string {
-  if (name.length <= maxLen) return name;
-  const extIndex = name.lastIndexOf('.');
-  if (extIndex > 0) {
-    const ext = name.substring(extIndex);
-    const base = name.substring(0, maxLen - ext.length - 3);
-    return `${base}...${ext}`;
-  }
-  return `${name.substring(0, maxLen - 3)}...`;
-}
-
-function yieldToMain(): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
 }
