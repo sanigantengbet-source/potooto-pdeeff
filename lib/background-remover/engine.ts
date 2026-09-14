@@ -2,7 +2,6 @@ import {
   HardwareSupport,
   ModelProgress,
   ModelVariant,
-  SupportedModelId,
   ProcessOptions,
   ProcessResult,
   RuntimeDevice,
@@ -72,7 +71,7 @@ export class BackgroundRemoverEngine {
     const targetDevice: RuntimeDevice =
       forceDevice || (hardware.webgpu ? 'webgpu' : 'wasm');
 
-    const modelId: SupportedModelId =
+    const modelId: string =
       variant === 'birefnet'
         ? 'onnx-community/BiRefNet-ONNX'
         : 'briaai/RMBG-1.4';
@@ -144,23 +143,13 @@ export class BackgroundRemoverEngine {
 
       // Optimize ONNX wasm threading to prevent starving the UI event loop
       if (env.backends?.onnx?.wasm) {
-        const hasSharedBuffer =
-          typeof crossOriginIsolated !== 'undefined' &&
-          crossOriginIsolated &&
-          typeof SharedArrayBuffer !== 'undefined';
         const hardwareConcurrency =
           typeof navigator !== 'undefined' && navigator.hardwareConcurrency
             ? navigator.hardwareConcurrency
             : 4;
-        const isMobile = isMobileOrLowPowerDevice();
-        // Keep 1 thread on mobile or when SharedArrayBuffer is absent to prevent thread starvation & UI freeze
-        const safeThreads =
-          hasSharedBuffer && !isMobile
-            ? Math.max(1, Math.min(2, hardwareConcurrency - 1))
-            : 1;
+        const safeThreads = Math.max(1, Math.min(3, hardwareConcurrency - 1));
         env.backends.onnx.wasm.numThreads = safeThreads;
         env.backends.onnx.wasm.simd = true;
-        env.backends.onnx.wasm.proxy = false;
       }
 
       // Real progress callback following actual byte downloads
@@ -170,7 +159,7 @@ export class BackgroundRemoverEngine {
         if (info.status === 'progress') {
           const now = performance.now();
           // Throttle UI progress dispatches to prevent React state churn freeze
-          if (now - lastProgressTick < 90 && info.progress < 100) return;
+          if (now - lastProgressTick < 80 && info.progress < 100) return;
           lastProgressTick = now;
 
           const realPercent = Math.min(
@@ -203,16 +192,14 @@ export class BackgroundRemoverEngine {
       };
 
       // Try candidate models: primary requested model first, with fallback to Xenova/modnet if primary model fails
-      const candidateModels: SupportedModelId[] = [
+      const candidateModels: string[] = [
         modelId,
-        ...((modelId as string) !== 'Xenova/modnet'
-          ? (['Xenova/modnet'] as SupportedModelId[])
-          : []),
+        ...(modelId !== 'Xenova/modnet' ? ['Xenova/modnet'] : []),
       ];
 
       let segmenter: any = null;
       let actualRuntime: RuntimeDevice = targetDevice;
-      let usedModelId: SupportedModelId = modelId;
+      let usedModelId = modelId;
       let lastError: any = null;
 
       for (const currentModel of candidateModels) {
@@ -380,7 +367,7 @@ export class BackgroundRemoverEngine {
     // cap the inference input to prevent browser GPU/RAM freeze while preserving original resolution for final mask composite.
     const userMaxDim = options.maxDimension ?? 0;
     const isMobile = isMobileOrLowPowerDevice();
-    const autoCapDim = isMobile ? 1024 : 2048;
+    const autoCapDim = isMobile ? 1280 : 2048;
     const effectiveInferenceMaxDim =
       userMaxDim > 0 ? userMaxDim : (origWidth > autoCapDim || origHeight > autoCapDim ? autoCapDim : 0);
 
@@ -402,7 +389,7 @@ export class BackgroundRemoverEngine {
       if (resizeCtx) {
         resizeCtx.drawImage(origImg, 0, 0, scaledW, scaledH);
         const scaledBlob = await new Promise<Blob | null>((res) =>
-          resizeCanvas.toBlob(res, 'image/jpeg', 0.92)
+          resizeCanvas.toBlob(res, 'image/png')
         );
         if (scaledBlob) {
           inferenceUrl = URL.createObjectURL(scaledBlob);
@@ -427,7 +414,7 @@ export class BackgroundRemoverEngine {
     });
 
     // Generous yield to allow browser layout, paint, and animations to run cleanly before AI inference
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await new Promise((resolve) => setTimeout(resolve, 60));
 
     // Run segmenter inference
     let output: any;
