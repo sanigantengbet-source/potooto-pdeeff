@@ -1,36 +1,34 @@
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import { PdfToolExecutionResult, ProgressStatus } from './types';
 
-export type WatermarkType = 'text' | 'image';
-export type WatermarkPosition = 'center' | 'top' | 'bottom' | 'diagonal' | 'tiled';
+export type WatermarkPosition =
+  | 'center'
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right';
 
 export interface WatermarkOptions {
-  type: WatermarkType;
-  // Text watermark options
+  type: 'text' | 'image';
   text?: string;
   fontSize?: number;
-  color?: string; // hex #RRGGBB
-  rotation?: number; // degrees e.g. -45, 0, 45
-  opacity?: number; // 0.1 to 1.0
+  color?: string; // hex
+  opacity?: number; // 0..1
+  rotation?: number; // degrees
   position?: WatermarkPosition;
-
-  // Image watermark options
   imageFile?: File;
-  imageBytes?: Uint8Array;
-  imageFormat?: 'png' | 'jpg';
-  imageScale?: number; // 0.1 to 2.0
-
-  // Page targeting
-  target: 'all' | 'odd' | 'even' | 'custom';
-  customPages?: number[];
+  target?: 'all' | 'custom';
 }
 
-function hexToRgb(hex: string) {
-  const clean = hex.replace('#', '');
-  const r = parseInt(clean.substring(0, 2), 16) / 255 || 0;
-  const g = parseInt(clean.substring(2, 4), 16) / 255 || 0;
-  const b = parseInt(clean.substring(4, 6), 16) / 255 || 0;
-  return rgb(r, g, b);
+function hexToRgbColor(hex: string) {
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 6) {
+    const r = parseInt(cleanHex.substring(0, 2), 16) / 255;
+    const g = parseInt(cleanHex.substring(2, 4), 16) / 255;
+    const b = parseInt(cleanHex.substring(4, 6), 16) / 255;
+    return rgb(r, g, b);
+  }
+  return rgb(0.5, 0.5, 0.5);
 }
 
 export async function applyWatermarkToPdf(
@@ -38,128 +36,132 @@ export async function applyWatermarkToPdf(
   options: WatermarkOptions,
   onProgress?: (status: ProgressStatus) => void
 ): Promise<PdfToolExecutionResult> {
-  onProgress?.({ percent: 15, stage: 'Membaca dokumen PDF...' });
+  onProgress?.({ percent: 10, stage: 'Memuat berkas PDF...' });
 
   const arrayBuffer = await file.arrayBuffer();
   const pdfDoc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
-  const totalPages = pdfDoc.getPageCount();
+  const pages = pdfDoc.getPages();
+  const totalPages = pages.length;
+
+  if (totalPages === 0) {
+    throw new Error('Dokumen PDF tidak memiliki halaman.');
+  }
 
   const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const opacity = options.opacity ?? 0.35;
-  const rotationDeg = options.rotation ?? (options.position === 'diagonal' ? -45 : 0);
+  const opacity = options.opacity ?? 0.3;
+  const rotationDeg = options.rotation ?? 45;
+  const fontSize = options.fontSize ?? 48;
+  const textColor = hexToRgbColor(options.color || '#888888');
 
   let embeddedImage: any = null;
   if (options.type === 'image' && options.imageFile) {
-    const imgBuf = await options.imageFile.arrayBuffer();
-    const bytes = new Uint8Array(imgBuf);
-    const isPng = options.imageFile.type.includes('png') || options.imageFile.name.toLowerCase().endsWith('.png');
-    embeddedImage = isPng ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
+    onProgress?.({ percent: 25, stage: 'Memuat gambar watermark...' });
+    const imgBuffer = await options.imageFile.arrayBuffer();
+    const isPng =
+      options.imageFile.type.includes('png') ||
+      options.imageFile.name.toLowerCase().endsWith('.png');
+    if (isPng) {
+      embeddedImage = await pdfDoc.embedPng(imgBuffer);
+    } else {
+      embeddedImage = await pdfDoc.embedJpg(imgBuffer);
+    }
   }
 
-  const customSet = new Set(options.customPages || []);
-
   for (let i = 0; i < totalPages; i++) {
-    const pageNum = i + 1;
-    let apply = false;
+    const progress = Math.round(30 + ((i + 1) / totalPages) * 55);
+    onProgress?.({
+      percent: progress,
+      stage: `Menerapkan watermark pada halaman ${i + 1} dari ${totalPages}...`,
+    });
 
-    if (options.target === 'all') apply = true;
-    else if (options.target === 'odd' && pageNum % 2 === 1) apply = true;
-    else if (options.target === 'even' && pageNum % 2 === 0) apply = true;
-    else if (options.target === 'custom' && customSet.has(pageNum)) apply = true;
-
-    if (!apply) continue;
-
-    const page = pdfDoc.getPage(i);
+    const page = pages[i];
     const { width, height } = page.getSize();
 
-    if (options.type === 'text') {
-      const text = options.text || 'CONFIDENTIAL';
-      const size = options.fontSize || 48;
-      const textWidth = font.widthOfTextAtSize(text, size);
-      const textHeight = font.heightAtSize(size);
-      const textColor = hexToRgb(options.color || '#94a3b8');
+    if (options.type === 'text' && options.text) {
+      const text = options.text;
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+      const textHeight = font.heightAtSize(fontSize);
 
-      if (options.position === 'tiled') {
-        const stepX = textWidth + 80;
-        const stepY = textHeight + 90;
-        for (let x = 30; x < width; x += stepX) {
-          for (let y = 30; y < height; y += stepY) {
-            page.drawText(text, {
-              x,
-              y,
-              size,
-              font,
-              color: textColor,
-              opacity,
-              rotate: degrees(rotationDeg),
-            });
-          }
-        }
-      } else {
-        // Calculate center or positioning
-        let x = (width - textWidth) / 2;
-        let y = (height - textHeight) / 2;
+      let x = (width - textWidth) / 2;
+      let y = (height - textHeight) / 2;
 
-        if (options.position === 'top') {
-          y = height - textHeight - 50;
-        } else if (options.position === 'bottom') {
-          y = 50;
-        }
-
-        page.drawText(text, {
-          x,
-          y,
-          size,
-          font,
-          color: textColor,
-          opacity,
-          rotate: degrees(rotationDeg),
-        });
+      if (options.position === 'top-left') {
+        x = 50;
+        y = height - 50 - textHeight;
+      } else if (options.position === 'top-right') {
+        x = width - textWidth - 50;
+        y = height - 50 - textHeight;
+      } else if (options.position === 'bottom-left') {
+        x = 50;
+        y = 50;
+      } else if (options.position === 'bottom-right') {
+        x = width - textWidth - 50;
+        y = 50;
       }
-    } else if (options.type === 'image' && embeddedImage) {
-      const scale = options.imageScale || 0.4;
-      const imgWidth = embeddedImage.width * scale;
-      const imgHeight = embeddedImage.height * scale;
 
-      let x = (width - imgWidth) / 2;
-      let y = (height - imgHeight) / 2;
+      page.drawText(text, {
+        x: Math.max(10, x),
+        y: Math.max(10, y),
+        size: fontSize,
+        font,
+        color: textColor,
+        opacity,
+        rotate: degrees(rotationDeg),
+      });
+    } else if (embeddedImage) {
+      const imgDims = embeddedImage.scale(0.5);
+      let imgW = imgDims.width;
+      let imgH = imgDims.height;
 
-      if (options.position === 'top') {
-        y = height - imgHeight - 40;
-      } else if (options.position === 'bottom') {
+      // Scale to fit within page bounds if oversized
+      const maxW = width * 0.6;
+      const maxH = height * 0.6;
+      if (imgW > maxW || imgH > maxH) {
+        const scale = Math.min(maxW / imgW, maxH / imgH);
+        imgW *= scale;
+        imgH *= scale;
+      }
+
+      let x = (width - imgW) / 2;
+      let y = (height - imgH) / 2;
+
+      if (options.position === 'top-left') {
+        x = 40;
+        y = height - imgH - 40;
+      } else if (options.position === 'top-right') {
+        x = width - imgW - 40;
+        y = height - imgH - 40;
+      } else if (options.position === 'bottom-left') {
+        x = 40;
+        y = 40;
+      } else if (options.position === 'bottom-right') {
+        x = width - imgW - 40;
         y = 40;
       }
 
       page.drawImage(embeddedImage, {
         x,
         y,
-        width: imgWidth,
-        height: imgHeight,
+        width: imgW,
+        height: imgH,
         opacity,
         rotate: degrees(rotationDeg),
       });
     }
-
-    const progressPercent = Math.round(20 + (i / totalPages) * 70);
-    onProgress?.({
-      percent: progressPercent,
-      stage: `Menambahkan tanda air ke halaman ${pageNum} dari ${totalPages}...`,
-    });
   }
 
-  onProgress?.({ percent: 92, stage: 'Menyimpan berkas PDF...' });
-  const finalBytes = await pdfDoc.save();
+  onProgress?.({ percent: 90, stage: 'Menyimpan dokumen PDF...' });
+  const pdfBytes = await pdfDoc.save();
 
-  onProgress?.({ percent: 100, stage: 'Tanda air berhasil diterapkan!' });
-
-  const blob = new Blob([finalBytes as unknown as BlobPart], { type: 'application/pdf' });
+  onProgress?.({ percent: 100, stage: 'Watermark berhasil diterapkan!' });
+  const blob = new Blob([pdfBytes as unknown as BlobPart], { type: 'application/pdf' });
   const url = URL.createObjectURL(blob);
-  const baseName = file.name.replace(/\.pdf$/i, '');
-  const finalName = `${baseName}-watermarked.pdf`;
+  const baseName = file.name.replace(/\.[^/.]+$/, '');
+  const finalName = `${baseName}_watermark.pdf`;
 
   return {
     toolId: 'watermark',
-    title: 'Tanda Air Berhasil Ditambahkan',
+    title: 'Watermark Berhasil Diterapkan',
     items: [
       {
         name: finalName,
@@ -170,7 +172,7 @@ export async function applyWatermarkToPdf(
       },
     ],
     stats: {
-      totalPages,
+      originalSize: file.size,
       resultSize: blob.size,
     },
   };
