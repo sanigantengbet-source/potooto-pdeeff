@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  * {
+    border-color: var(--border, rgba(0, 0, 0, 0.1));
+  }
+  .dark * {
+    border-color: var(--border-dark, rgba(255, 255, 255, 0.1));
+  }
+}
+
+.bg-checkerboard {
+  background-color: #ffffff;
+  background-image: repeating-conic-gradient(#e4e4e7 0% 25%, #ffffff 0% 50%);
+  background-size: 16px 16px;
+}
+
+.dark .bg-checkerboard {
+  background-color: #18181b;
+  background-image: repeating-conic-gradient(#27272a 0% 25%, #18181b 0% 50%);
+  background-size: 16px 16px;
+}
+
+
