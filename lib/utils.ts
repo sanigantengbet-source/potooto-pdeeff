@@ -20,4 +20,3 @@ export function generatePdfFilename(): string {
   const timestamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}`;
   return `photo-to-pdf_${timestamp}.pdf`;
 }
-
